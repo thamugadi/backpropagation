@@ -1,4 +1,18 @@
 import numpy as np
+wLM = np.array([
+        [[0.276, 0.18], [0.108, 0.903]],
+        [[0.476, 0.28], [0.508, 0.303]],
+        [[0.476, 0.28], [0.508, 0.303]],
+        [[0.476, 0.28], [0.508, 0.303]],
+        [[0.476, 0.28], [0.508, 0.303]],
+        [[0.476, 0.28], [0.508, 0.303]],
+])
+M = np.array(
+        [[0.2,0.1], [0.4,0.1]]
+)
+bM = np.array([
+    [0,0], [0,0],[0,0], [0,0],[0,0], [0,0]
+])
 
 def reLU(x):
     if x > 0:
@@ -128,4 +142,3 @@ def updateBiasesRNN(W,B,M, firstLayer,previousLayer, activation, derivative, dCo
     for i in range(n):
         NB.append(B[i] - rate*errors[i])
     return NB
-
