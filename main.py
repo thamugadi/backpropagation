@@ -1,15 +1,4 @@
 import numpy as np
-wLM = np.array([
-        [[-0.076, 0.18], [0.108, 0.903]],
-        [[0.4, 0.3], [0.0, 0.668]],
-        [[0.3, 0.4], [0.359, 0.111]],
-        [[0.2, 0.45], [0.1, 0.312]],
-        [[0.1, 0.6], [0.2, 0.211]],
-        [[0.1,0.2], [0.3,0.5]]
-])
-bM = np.array([
-    [0,0], [0,0], [0,0], [0,0], [0,0], [0,0]
-])
 
 def reLU(x):
     if x > 0:
@@ -55,7 +44,7 @@ def evaluateAggregated(W,B, firstLayer, activation):
 def evaluateRNN(W,B,M, firstLayer, previousLayer, activation):
     layers = []
     Iw = (np.dot(W[0], firstLayer))
-    Yw = (np.dot(M, secondLayer))
+    Yw = (np.dot(M, previousLayer))
     layers.append(np.vectorize(activation)(Iw+Yw+B[0]))
     for i in range(1,len(W)):
         layers.append(np.vectorize(activation)(np.dot(W[i], layers[i-1]) + B[i]))
@@ -63,7 +52,7 @@ def evaluateRNN(W,B,M, firstLayer, previousLayer, activation):
 def evaluateAgRNN(W,B,M, firstLayer, previousLayer, activation):
     layers = []
     Iw = np.dot(W[0], firstLayer)
-    Yw = np.dot(M, secondLayer)
+    Yw = np.dot(M, previousLayer)
     layers.append(Iw+Yw+B[0])
     for i in range(1,len(W)):
         ac = np.vectorize(activation)(layers[i-1])
@@ -102,3 +91,41 @@ def updateBiases(W,B, firstLayer, activation, derivative, dCost, correct, rate):
     for i in range(n):
         NB.append(B[i] - rate*errors[i])
     return NB
+
+def backpropagateRNN(W,B,M, firstLayer, previousLayer, activation, derivative, dCost, correct):
+    network = evaluateRNN(W, B,M,  firstLayer, previousLayer, activation)
+    agnetwork = evaluateAgRNN(W,B,M, firstLayer, previousLayer, activation)
+    n = len(network)-1
+    toBeReversed = []
+    error = np.vectorize(dCost)(network[n], correct) * np.vectorize(derivative)(agnetwork[n])
+    toBeReversed.append(error)
+    if n == 0:
+        return toBeReversed
+    for i in range(n-1, 0, -1):
+        error = np.dot(np.transpose(W[i+1]), error)*np.vectorize(derivative)(agnetwork[i])
+        toBeReversed.append(error)
+    toBeReversed.append(np.dot(np.transpose(W[0]), error)*np.vectorize(derivative)(firstLayer))
+
+
+    M2 = np.dot(np.transpose(M), error)*np.vectorize(derivative)(previousLayer)
+    toBeReversed.reverse()
+    return (toBeReversed, network, M2)
+
+def updateWeightsRNN(W,B,M, firstLayer, previousLayer, activation, derivative, dCost, correct, rate):
+    (errors, network, Merror)= backpropagateRNN(W,B,M,firstLayer, previousLayer, activation, derivative,dCost,correct)
+    NW = []
+    n = len(W)
+    NW.append(W[0] - rate*np.array(firstLayer)*errors[0])
+    for i in range(1, n):
+        NW.append(W[i] - rate*network[i-1]*errors[i])
+    M2 = np.array(M) - (rate*np.array(previousLayer)*Merror)
+    return (NW,M2)
+
+def updateBiasesRNN(W,B,M, firstLayer,previousLayer, activation, derivative, dCost, correct, rate):
+    (errors, network, Merror)=backpropagateRNN(W,B,M,firstLayer,previousLayer,activation,derivative,dCost,correct)
+    NB = []
+    n = len(B)
+    for i in range(n):
+        NB.append(B[i] - rate*errors[i])
+    return NB
+
