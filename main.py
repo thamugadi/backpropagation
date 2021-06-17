@@ -1,4 +1,15 @@
 import numpy as np
+wLM = np.array([
+        [[-0.076, 0.18], [0.108, 0.903]],
+        [[0.4, 0.3], [0.0, 0.668]],
+        [[0.3, 0.4], [0.359, 0.111]],
+        [[0.2, 0.45], [0.1, 0.312]],
+        [[0.1, 0.6], [0.2, 0.211]],
+        [[0.1,0.2], [0.3,0.5]]
+])
+bM = np.array([
+    [0,0], [0,0], [0,0], [0,0], [0,0], [0,0]
+])
 
 def reLU(x):
     if x > 0:
@@ -8,6 +19,10 @@ def dreLU(x):
     if x > 0:
         return 1
     return 0
+def sigmoid(x):
+    return 1/(1+np.exp(-x))
+def dsigmoid(x):
+    return (sigmoid(x))*(1-sigmoid(x))
 def datan(x):
     return 1/(1+(x**2))
 def MSE(A,B):
@@ -21,18 +36,39 @@ def dMSE_vec(A,B):
 def identity(x):
     return x
 
+
 def evaluateNetwork(W, B, firstLayer, activation):
-    if len(W) == 0:
-        return []
-    secondLayer = np.vectorize(activation)(np.dot(W[0], firstLayer)+B[0])
-    return [secondLayer]+evaluateNetwork(W[1:],B[1:], secondLayer, activation)
+    layers = []
+    layers.append(np.vectorize(activation)(np.dot(W[0], firstLayer)+B[0]))
+    for i in range(1,len(W)):
+        layers.append(np.vectorize(activation)(np.dot(W[i], layers[i-1])+B[i]))
+    return layers
 
 def evaluateAggregated(W,B, firstLayer, activation):
-    if len(W) == 0:
-        return []
-    secondLayer = np.vectorize(activation)(np.dot(W[0], firstLayer)+B[0])
-    secondLayerNonAct = (np.dot(W[0], firstLayer)+B[0])
-    return [secondLayerNonAct]+evaluateAggregated(W[1:],B[1:], secondLayer, activation)
+    layers = []
+    layers.append((np.dot(W[0], firstLayer)+B[0]))
+    for i in range(1, len(W)):
+        ac = np.vectorize(activation)(layers[i-1])
+        layers.append(np.dot(W[i], ac) + B[i])
+    return layers
+
+def evaluateRNN(W,B,M, firstLayer, previousLayer, activation):
+    layers = []
+    Iw = (np.dot(W[0], firstLayer))
+    Yw = (np.dot(M, secondLayer))
+    layers.append(np.vectorize(activation)(Iw+Yw+B[0]))
+    for i in range(1,len(W)):
+        layers.append(np.vectorize(activation)(np.dot(W[i], layers[i-1]) + B[i]))
+    return layers
+def evaluateAgRNN(W,B,M, firstLayer, previousLayer, activation):
+    layers = []
+    Iw = np.dot(W[0], firstLayer)
+    Yw = np.dot(M, secondLayer)
+    layers.append(Iw+Yw+B[0])
+    for i in range(1,len(W)):
+        ac = np.vectorize(activation)(layers[i-1])
+        layers.append(np.dot(W[i], ac) + B[i])
+    return layers
 
 def backpropagate(W,B, firstLayer, activation, derivative, dCost, correct):
     network = evaluateNetwork(W, B, firstLayer, activation)
@@ -52,7 +88,6 @@ def backpropagate(W,B, firstLayer, activation, derivative, dCost, correct):
 
 def updateWeights(W,B, firstLayer, activation, derivative, dCost, correct, rate):
     (errors, network) = backpropagate(W,B,firstLayer,activation,derivative,dCost,correct)
-
     NW = []
     n = len(W)
     NW.append(W[0] - rate*np.array(firstLayer)*errors[0])
