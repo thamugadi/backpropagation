@@ -1,144 +1,76 @@
 import numpy as np
-wLM = np.array([
-        [[0.276, 0.18], [0.108, 0.903]],
-        [[0.476, 0.28], [0.508, 0.303]],
-        [[0.476, 0.28], [0.508, 0.303]],
-        [[0.476, 0.28], [0.508, 0.303]],
-        [[0.476, 0.28], [0.508, 0.303]],
-        [[0.476, 0.28], [0.508, 0.303]],
-])
-M = np.array(
-        [[0.2,0.1], [0.4,0.1]]
-)
-bM = np.array([
-    [0,0], [0,0],[0,0], [0,0],[0,0], [0,0]
-])
-
-def reLU(x):
-    if x > 0:
-        return x
-    return 0
-def dreLU(x):
-    if x > 0:
-        return 1
-    return 0
 def sigmoid(x):
     return 1/(1+np.exp(-x))
 def dsigmoid(x):
     return (sigmoid(x))*(1-sigmoid(x))
-def datan(x):
-    return 1/(1+(x**2))
-def MSE(A,B):
-    return ((A - B)**2).mean(axis=0)
-def MSE_vec(A,B):
-    return ((A - B)**2)
 def dMSE(A,B):
-    return (2*(A - B)).mean(axis=0)
-def dMSE_vec(A,B):
-    return (2*(A - B))
-def identity(x):
-    return x
+    return 2*(A-B)
+
+class VanillaLayer:
+    def __init__(self, inputLength,outputLength, activation,derivative):
+        self.inputLength = inputLength
+        self.outputLength = outputLength
+        self.afunc = activation
+        self.dfunc = derivative
+        self.wmatrix = np.random.rand(outputLength,inputLength)
+        self.bvector = np.random.rand(outputLength)
+    def evaluate(self, input):
+        self.activation = self.afunc(np.dot(input, self.wmatrix)+self.bvector)
+        self.h = np.dot(input, self.wmatrix)+self.bvector
 
 
-def evaluateNetwork(W, B, firstLayer, activation):
-    layers = []
-    layers.append(np.vectorize(activation)(np.dot(W[0], firstLayer)+B[0]))
-    for i in range(1,len(W)):
-        layers.append(np.vectorize(activation)(np.dot(W[i], layers[i-1])+B[i]))
-    return layers
-
-def evaluateAggregated(W,B, firstLayer, activation):
-    layers = []
-    layers.append((np.dot(W[0], firstLayer)+B[0]))
-    for i in range(1, len(W)):
-        ac = np.vectorize(activation)(layers[i-1])
-        layers.append(np.dot(W[i], ac) + B[i])
-    return layers
-
-def evaluateRNN(W,B,M, firstLayer, previousLayer, activation):
-    layers = []
-    Iw = (np.dot(W[0], firstLayer))
-    Yw = (np.dot(M, previousLayer))
-    layers.append(np.vectorize(activation)(Iw+Yw+B[0]))
-    for i in range(1,len(W)):
-        layers.append(np.vectorize(activation)(np.dot(W[i], layers[i-1]) + B[i]))
-    return layers
-def evaluateAgRNN(W,B,M, firstLayer, previousLayer, activation):
-    layers = []
-    Iw = np.dot(W[0], firstLayer)
-    Yw = np.dot(M, previousLayer)
-    layers.append(Iw+Yw+B[0])
-    for i in range(1,len(W)):
-        ac = np.vectorize(activation)(layers[i-1])
-        layers.append(np.dot(W[i], ac) + B[i])
-    return layers
-
-def backpropagate(W,B, firstLayer, activation, derivative, dCost, correct):
-    network = evaluateNetwork(W, B, firstLayer, activation)
-    agnetwork = evaluateAggregated(W,B, firstLayer, activation)
-    n = len(network)-1
-    toBeReversed = []
-    error = np.vectorize(dCost)(network[n], correct) * np.vectorize(derivative)(agnetwork[n])
-    toBeReversed.append(error)
-    if n == 0:
-        return toBeReversed
-    for i in range(n-1, 0, -1):
-        error = np.dot(np.transpose(W[i+1]), error)*np.vectorize(derivative)(agnetwork[i])
-        toBeReversed.append(error)
-    toBeReversed.append(np.dot(np.transpose(W[0]), error)*np.vectorize(derivative)(firstLayer))
-    toBeReversed.reverse()
-    return (toBeReversed, network)
-
-def updateWeights(W,B, firstLayer, activation, derivative, dCost, correct, rate):
-    (errors, network) = backpropagate(W,B,firstLayer,activation,derivative,dCost,correct)
-    NW = []
-    n = len(W)
-    NW.append(W[0] - rate*np.array(firstLayer)*errors[0])
-    for i in range(1, n):
-        NW.append(W[i] - rate*network[i-1]*errors[i])
-    return NW
-
-def updateBiases(W,B, firstLayer, activation, derivative, dCost, correct, rate):
-    (errors, network) = backpropagate(W,B,firstLayer,activation,derivative,dCost,correct)
-    NB = []
-    n = len(B)
-    for i in range(n):
-        NB.append(B[i] - rate*errors[i])
-    return NB
-
-def backpropagateRNN(W,B,M, firstLayer, previousLayer, activation, derivative, dCost, correct):
-    network = evaluateRNN(W, B,M,  firstLayer, previousLayer, activation)
-    agnetwork = evaluateAgRNN(W,B,M, firstLayer, previousLayer, activation)
-    n = len(network)-1
-    toBeReversed = []
-    error = np.vectorize(dCost)(network[n], correct) * np.vectorize(derivative)(agnetwork[n])
-    toBeReversed.append(error)
-    if n == 0:
-        return toBeReversed
-    for i in range(n-1, 0, -1):
-        error = np.dot(np.transpose(W[i+1]), error)*np.vectorize(derivative)(agnetwork[i])
-        toBeReversed.append(error)
-    toBeReversed.append(np.dot(np.transpose(W[0]), error)*np.vectorize(derivative)(firstLayer))
+class HiddenLayer(VanillaLayer):
+    def computeError(self, nextlayer):
+        self.error = np.dot(np.transpose(nextlayer.wmatrix),nextlayer.error)*self.dfunc(self.h)
 
 
-    M2 = np.dot(np.transpose(M), error)*np.vectorize(derivative)(previousLayer)
-    toBeReversed.reverse()
-    return (toBeReversed, network, M2)
+class OutputLayer(VanillaLayer):
+    def computeError(self, dCost, input, correct):
+        self.error = dCost(self.activation,correct)*self.dfunc(self.h)
 
-def updateWeightsRNN(W,B,M, firstLayer, previousLayer, activation, derivative, dCost, correct, rate):
-    (errors, network, Merror)= backpropagateRNN(W,B,M,firstLayer, previousLayer, activation, derivative,dCost,correct)
-    NW = []
-    n = len(W)
-    NW.append(W[0] - rate*np.array(firstLayer)*errors[0])
-    for i in range(1, n):
-        NW.append(W[i] - rate*network[i-1]*errors[i])
-    M2 = np.array(M) - (rate*np.array(previousLayer)*Merror)
-    return (NW,M2)
 
-def updateBiasesRNN(W,B,M, firstLayer,previousLayer, activation, derivative, dCost, correct, rate):
-    (errors, network, Merror)=backpropagateRNN(W,B,M,firstLayer,previousLayer,activation,derivative,dCost,correct)
-    NB = []
-    n = len(B)
-    for i in range(n):
-        NB.append(B[i] - rate*errors[i])
-    return NB
+class VanillaNetwork:
+    def __init__(self):
+        self.layers = []
+    def add(self, layer):
+        self.layers.append(layer)
+    def evaluate(self, input):
+        self.network = []
+        self.hnetwork = []
+        output = np.array(np.array(input))
+        self.network.append(np.array(input))
+        self.hnetwork.append(np.array(input))
+        for layer in self.layers:
+            layer.evaluate(output)
+            output = layer.activation
+            h = layer.h
+            self.network.append(output)
+            self.hnetwork.append(h)
+        self.houtput = h
+        self.output = output
+        return output
+    def backpropagate(self, input, correct, dCost):
+        self.evaluate(np.array(input))
+        self.gradients = []
+        n = len(self.layers)
+        error = self.layers[n-1].computeError(dCost, np.array(input), np.array(correct))
+        for layer, nextlayer in zip(self.layers[::-1][1:], self.layers[::-1]):
+            layer.computeError(nextlayer)
+        for layer in self.layers:
+            self.gradients.append(layer.error)
+    def adjustWeights(self, rate):
+        for (layer, a) in zip(self.layers, self.network):
+            layer.wmatrix = layer.wmatrix - rate*a*layer.error
+    def adjustBiases(self,rate):
+        for layer in self.layers:
+            layer.bvector = layer.bvector - rate*layer.error
+
+H1 = HiddenLayer(3,3,sigmoid,dsigmoid)
+O1 = OutputLayer(3,3,sigmoid,dsigmoid)
+
+N = VanillaNetwork()
+N.add(H1)
+N.add(O1)
+for _ in range(1001):
+    N.backpropagate([0,0,1],[1,0,0],dMSE)
+    N.adjustWeights(0.2)
