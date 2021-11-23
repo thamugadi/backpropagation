@@ -1,2 +1,1 @@
 # backpropagation
-From scratch backpropagation
